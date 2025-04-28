@@ -3,20 +3,22 @@ using System.ComponentModel.DataAnnotations;
 
 namespace CoworkingAPI.Requests
 {
-    public class UserRegisterDto : User
+    public class UserRegisterDto
     {
-        [Required]
+        [Required(ErrorMessage = "Username is required")]
+        [StringLength(50, MinimumLength = 3, ErrorMessage = "Username must be between 3 and 50 characters")]
         public string Username { get; set; }
 
-        [Required]
-        [EmailAddress]
+        [Required(ErrorMessage = "Email is required")]
+        [EmailAddress(ErrorMessage = "Invalid email format")]
         public string Email { get; set; }
 
-        [Required]
+        [Required(ErrorMessage = "Password is required")]
+        [StringLength(100, MinimumLength = 6, ErrorMessage = "Password must be at least 6 characters")]
         public string Password { get; set; }
 
-        [Required]
-        [Range(1, 3, ErrorMessage = "RoleId must be between 1 and 3")]
+        [Required(ErrorMessage = "Role is required")]
+        [Range(1, 3, ErrorMessage = "Invalid role ID")]
         public int RoleId { get; set; }
     }
 }

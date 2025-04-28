@@ -6,46 +6,46 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace CoworkingAPI.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("api/auth")]
     [ApiController]
     public class AuthController : ControllerBase
     {
         private readonly IUserService _userService;
+        private readonly ILogger<AuthController> _logger;
 
-        public AuthController(IUserService userService)
+        public AuthController(IUserService userService, ILogger<AuthController> logger)
         {
             _userService = userService;
+            _logger = logger;
         }
 
         [HttpPost("register")]
-        public async Task<IActionResult> Register([FromBody] RegisterRequest request)
+        public async Task<IActionResult> Register([FromBody] UserRegisterDto request)
         {
             try
             {
-                // Преобразуем DTO в модель User
                 var user = new User
                 {
                     Username = request.Username,
                     Email = request.Email,
-                    Password = request.Password, // Пароль сохраняем как строку
-                    RoleId = request.RoleId     // Устанавливаем роль из запроса
+                    Password = request.Password, // Хранится в чистом виде (не рекомендуется для продакшена)
+                    RoleId = request.RoleId
                 };
 
-                // Вызываем сервис для регистрации
                 var createdUser = await _userService.Register(user);
 
-                // Возвращаем успешный ответ
                 return Ok(new
                 {
                     Message = "User registered successfully",
                     UserId = createdUser.Id,
-                    Username = createdUser.Username,
-                    Email = createdUser.Email,
-                    RoleId = createdUser.RoleId
+                    createdUser.Username,
+                    createdUser.Email,
+                    createdUser.RoleId
                 });
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Registration failed");
                 return BadRequest(new { Message = ex.Message });
             }
         }
@@ -60,6 +60,7 @@ namespace CoworkingAPI.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Login failed");
                 return Unauthorized(new { Message = ex.Message });
             }
         }

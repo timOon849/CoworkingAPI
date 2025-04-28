@@ -19,25 +19,19 @@ public class UserService : IUserService
         _configuration = configuration;
     }
 
-    public async Task<User> GetUserById(int id)
-    {
-        return await _context.Users
-            .Include(u => u.Role)
-            .Include(u => u.Bookings)
-            .FirstOrDefaultAsync(u => u.Id == id);
-    }
-
     public async Task<User> Register(User user)
     {
-        if (await UserExists(user.Username))
+        // Проверка уникальности
+        if (await _context.Users.AnyAsync(u => u.Username == user.Username))
             throw new Exception("Username already exists");
 
-        // Проверяем, существует ли указанная роль
-        var roleExists = await _context.Roles.AnyAsync(r => r.Id == user.RoleId);
-        if (!roleExists)
+        if (await _context.Users.AnyAsync(u => u.Email == user.Email))
+            throw new Exception("Email already in use");
+
+        // Проверка существования роли
+        if (!await _context.Roles.AnyAsync(r => r.Id == user.RoleId))
             throw new Exception("Invalid role");
 
-        // Добавляем пользователя в базу данных
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
 
@@ -51,11 +45,45 @@ public class UserService : IUserService
             .FirstOrDefaultAsync(u => u.Username == username && u.Password == password);
 
         if (user == null)
-            throw new Exception("Invalid username or password");
+            throw new Exception("Invalid credentials");
 
-        // Генерируем JWT-токен
         return GenerateJwtToken(user);
     }
+
+    private string GenerateJwtToken(User user)
+    {
+        var claims = new List<Claim>
+        {
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new Claim(ClaimTypes.Name, user.Username),
+            new Claim(ClaimTypes.Role, user.Role.Name)
+        };
+
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
+            _configuration["Jwt:SecretKey"] ?? throw new InvalidOperationException("JWT secret key is not configured")));
+
+        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+        var token = new JwtSecurityToken(
+            issuer: _configuration["Jwt:Issuer"],
+            audience: _configuration["Jwt:Audience"],
+            claims: claims,
+            expires: DateTime.Now.AddHours(1),
+            signingCredentials: creds
+        );
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    public async Task<User> GetUserById(int id)
+    {
+        return await _context.Users
+            .Include(u => u.Role)
+            .Include(u => u.Bookings)
+            .FirstOrDefaultAsync(u => u.Id == id);
+    }
+
+   
 
 
 
@@ -143,27 +171,5 @@ public class UserService : IUserService
             .Where(b => b.UserId == userId)
             .Include(b => b.Workplace)
             .ToListAsync();
-    }
-    private string GenerateJwtToken(User user)
-    {
-        var claims = new List<Claim>
-        {
-            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new Claim(ClaimTypes.Name, user.Username),
-            new Claim(ClaimTypes.Role, user.Role.Name)
-        };
-
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("your-very-strong-secret-key"));
-        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-        var token = new JwtSecurityToken(
-            issuer: "your-app",
-            audience: "your-app",
-            claims: claims,
-            expires: DateTime.Now.AddHours(1),
-            signingCredentials: creds
-        );
-
-        return new JwtSecurityTokenHandler().WriteToken(token);
     }
 }
